@@ -1,0 +1,5 @@
+format_strings = false
+use_try_shorthand = true
+else_if_brace_style = "ClosingNextLine"
+fn_empty_single_line = false
+single_line_if_else = true

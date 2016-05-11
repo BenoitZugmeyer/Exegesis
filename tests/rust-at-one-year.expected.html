@@ -1,0 +1,281 @@
+<span>
+    
+    
+    
+
+    One year of Rust - The Rust Programming Language Blog
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
+    
+    
+
+
+
+
+  
+
+    
+
+  
+
+     The Rust Programming Language Blog
+
+    
+
+  
+
+
+
+
+    
+      
+        
+
+  
+    One year of Rust
+    </span><time>2016-05-16</time><span>
+  
+
+  
+    </span><p><span>Rust is a language that gives you:</span></p><span>
+
+
+uncompromising performance and control;
+prevention of entire categories of bugs, including classic concurrency pitfalls;
+ergonomics that often rival languages like Python and Ruby.
+
+
+</span><p><span>It’s a language for writing highly reliable, screamingly fast software—and
+having fun doing it.</span></p><span>
+
+</span><p><span>And yesterday, Rust turned one year old.</span></p><span>
+
+</span><p></p><span>
+
+Rust in numbers
+
+</span><p><span>A lot has happened in the last 365 days:</span></p><span>
+
+
+11,894 commits by 702 contributors added to the core repository;
+88 RFCs merged;
+18 compiler targets introduced;
+9 releases shipped;
+1 year of stability delivered.
+
+
+</span><p><span>On an average week this year, the Rust community merged two RFCs and
+published 53 brand new crates. Not a single day went by without at least one
+new Rust library hitting the central package manager. And Rust topped the
+“most loved language” in this year’s StackOverflow survey.</span></p><span>
+
+</span><p><span>Speaking of numbers: we recently launched a survey of our own, and want to
+hear from you whether you are an old hat at Rust, or have never used it.</span></p><span>
+
+</span><p><span>One place where our numbers are not where we want them to be: community
+diversity. We’ve had ongoing local outreach efforts, but the Rust community team
+will soon be launching a coordinated, global effort following the Bridge model
+(e.g. RailsBridge). If you want to get involved, or have other ideas for
+outreach, please let the community team know.</span></p><span>
+
+Rust in production
+
+</span><p><span>This year saw more companies betting on Rust. Each one has a story, but two
+particularly resonated.</span></p><span>
+
+</span><p><span>First, there’s Dropbox. For the last several years, the company has been
+secretively working on a move
+away from AWS and onto its own infrastructure. The move, which is now
+complete, included developing custom-build hardware and the software to drive
+it. While much of Dropbox’s back-end infrastructure is historically written in
+Go, for some key components the memory footprint and lack of control stood in
+the way of achieving the server utilization they were striving for. They rewrote
+those components in Rust.  In the words of Jamie Turner, a lead
+engineer for the project, “the advantages of Rust are many: really powerful
+abstractions, no null, no segfaults, no leaks, yet C-like performance and
+control over memory.”</span></p><span>
+
+</span><p><span>Second, there’s Mozilla. They’ve long been developing Servo as a research
+browser engine in Rust, but their first production Rust code shipped through a
+different vehicle: Firefox. In Firefox 45, without any fanfare, Rust code for
+mp4 metadata parsing went out to OSX and 64-bit Linux users; it will hit
+Windows in version 48. The code is currently running in test mode, with its
+results compared against the legacy C++ library: 100% correctness on
+1 billion reported executions. But this code is just the tip of the iceberg:
+after laying a lot of groundwork for Rust integration, Firefox is poised to
+bring in significant amounts of new Rust code, including components from
+Servo—and not just in test mode.</span></p><span>
+
+</span><p><span>We’re hearing similar stories from a range of other shops that are putting
+Rust into production: Rust helps a team punch above its weight. It gives many of
+the same benefits as traditional systems languages while being more
+approachable, safer and often more productive.</span></p><span>
+
+</span><p><span>These are just a few stories of Rust in production, but we’d love to hear yours!</span></p><span>
+
+Rust, improved
+
+</span><p><span>Of course, Rust itself hasn’t been standing still. The focus in its first year
+has been growing and polishing its ecosystem and tooling:</span></p><span>
+
+
+</span><p><span>Ecosystem. The standard library has steadily expanded, with growth focused
+on filesystem access, networking, time, and collections APIs—and
+dramatically better documentation coverage.  There’s good support for working
+with C libraries via the libc, winapi, and gcc crates. And new libraries
+for low-level async io, easy parallelism,
+lock-free data structures,
+Rails-like object-relational mapping, regular expressions,
+and several parsing libraries, including html5ever, a
+unique HTML5 parser that leverages Rust’s macro system to make the code
+resemble the spec as closely as possible. These are just scratching the
+surface, of course, and ecosystem growth, curation and
+coherence—particularly around async IO and the web stack—will
+continue to be a major focus in the coming year.</span></p><span>
+</span><p><span>Platforms and targets. Rust’s memory footprint is not much bigger than C’s, which
+makes it ideal for using in all kinds of places. Over the last year, Rust
+gained the ability to work directly with the native MSVC toolchain on
+Windows, to target musl (thereby creating a binary that can be used with
+zero dependencies on any variety of Linux), to target Android and ARM
+devices, and many more platforms. The new rustup tool makes it
+a breeze to manage and compile to these various targets. As of
+Rust 1.6, you can use Rust without its full standard library,
+limiting to a core library that does not require any OS services (and hence is
+suitable for writing OSes
+in Rust). Finally, there are an increasing number of libraries
+for embedding Rust code into other contexts, like node.js,
+Ruby and Go.</span></p><span>
+</span><p><span>Tools. Because Rust looks just like C on the outside, it’s instantly
+usable with a wide range of existing tools; it works out of the box with
+lldb, gdb, perf, valgrind, callgrind, and many, many more.  Our
+focus has been to enrich the experience for these tools by adding
+Rust-specific hooks and workflows. Another major
+priority is providing full IDE support, in part by providing daemonized
+services from the compiler; we made good progress on that front this
+year, and thanks to the Racer project, numerous IDE plugins are already
+providing some semantic support for Rust. At the same time, the rustfmt code
+formatting tool has matured to the point that the Rust community is ready to
+produce an official style.  And the beating heart of Rust’s workflow,
+Cargo, gained numerous abilities this year, most notably the
+install subcommand.</span></p><span>
+</span><p><span>Compiler. We’ve seen some across-the-board improvements to compile
+times, and now offer parallelized code generation for
+further speedups. But the biggest wins will come from the ongoing work on
+incremental compilation, which will minimize the amount of work the needed
+when recompiling code after editing it. A vital step here was the move to a
+custom intermediate representation, which has many other benefits as
+well. Another focus has been errors, including
+detailed explanations of most errors, and ongoing work to
+improve the “at a glance” readability of errors. Expect to
+hear more on both fronts soon.</span></p><span>
+</span><p><span>Core language. We’ve kept one list purposefully short this year: growth in
+the core language. While we have some important features in the pipeline (like
+improved error handling, more flexible borrowing rules and
+specialization), Rust users by and large are happy with the core language
+and prefer the community to focus on the ecosystem and tooling.</span></p><span>
+
+
+</span><p><span>There’s a lot more to say about what’s happened and what’s coming up in the Rust
+world—over the coming months, we’ll be using this blog to say it.</span></p><span>
+
+Rust in community
+
+</span><p><span>It turns out that people like to get together and talk Rust. We had a sold out
+RustCamp last August, and several upcoming events in 2016:</span></p><span>
+
+
+September 9-10, 2016: the first RustConf in Portland, OR, USA;
+September 17, 2016: RustFest, the European community conference, in Berlin, Germany;
+October 27-18, 2016: Rust Belt Rust, a Rust conference in Pittsburgh, PA, USA;
+71 Rust-related meetup groups worldwide.
+
+
+</span><p><span>And that’s no surprise. From a personal perspective, the best part about working
+with Rust is its community. It’s hard to explain quite what it’s like to be
+part of this group, but two things stand out. First, its sheer energy: so much
+happens in any given week that This Week in Rust is a vital resource for
+anyone hoping to keep up. Second, its welcoming spirit. Rust’s core message is
+one of empowerment—you can fearlessly write safe, low-level systems
+code—and that’s reflected in the community. We’re all here to learn how to
+be better programmers, and support each other in doing so.</span></p><span>
+
+</span><p><span>There’s never been a better time to get started with Rust, whether through
+attending a local meetup, saying hello in the users forum, watching
+a talk, or reading the book. No matter how you find your way in, we’ll be
+glad to have you.</span></p><span>
+
+</span><p><span>Happy birthday, Rust!</span></p><span>
+
+  
+
+
+
+      
+    
+
+    More about Rust — Jump straight in
+
+
+
+  
+    
+      
+        The Rust Programming Language Blog
+      
+
+      
+        
+          
+          
+            
+              
+                
+                  
+                
+              
+
+              rust-lang
+            
+          
+          
+
+          
+          
+            
+              
+                
+                  
+                
+              
+
+              rustlang
+            
+          
+          
+        
+      
+
+      
+        </span><p><span>Words from the Rust team
+</span></p><span>
+      
+    
+
+  
+
+
+
+
+
+
+  
+
+</span>
