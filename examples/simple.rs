@@ -1,9 +1,9 @@
 #![feature(question_mark)]
 
 extern crate hyper;
-extern crate content_extractor;
+extern crate exegesis;
 
-use content_extractor::{Website, toml, extract, Formatter, HtmlFormatter};
+use exegesis::{Website, toml, extract, Formatter, HtmlFormatter};
 
 use hyper::{Client, Error as HyperError};
 use hyper::header;
