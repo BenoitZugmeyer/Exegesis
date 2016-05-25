@@ -69,22 +69,40 @@ fn parse_selector(part_type: PartType,
     Ok(())
 }
 
+fn splat<F>(opt_value: Option<&toml::Value>, name: &str, f: &mut F) -> Result<(), Box<error::Error>>
+    where F: FnMut(&str) -> Result<(), Box<error::Error>>
+{
+    match opt_value {
+        None => {}
+        Some(&toml::Value::String(ref s)) => f(s)?,
+        Some(&toml::Value::Array(ref array)) => {
+            for v in array {
+                splat(Some(v), name, f)?
+            }
+        }
+        _ => Err(Error::FormatError(format!("'{}' should be a string", name)))?,
+    }
+
+    Ok(())
+}
+
 fn parse_rule_from_toml_value(name: &str,
                               value: &toml::Value)
                               -> Result<rule::Rule, Box<error::Error>> {
+
 
     let table = value.as_table()
         .ok_or_else(|| Error::FormatError(format!("The rule '{}' should be a table", name)))?;
 
     let mut extractor_options = ExtractorOptions::default();
 
-    if let Some(format) = table.get("date_format") {
-        let f = format.as_str()
-            .ok_or_else(|| {
-                Error::FormatError(format!("'rules.{}.date_format' should be a string", name))
-            })?;
-        extractor_options.date_format = Some(f.to_string());
-    }
+    splat(table.get("date_format"),
+          "date_format",
+          &mut |s| {
+              extractor_options.date_format = Some(s.to_string());
+              Ok(())
+          })
+        ?;
 
     let mut extractor = Extractor::new(extractor_options);
 
@@ -102,13 +120,13 @@ fn parse_rule_from_toml_value(name: &str,
 
     let mut result = rule::Rule::new(name.to_owned(), extractor);
 
-    if let Some(include_url) = table.get("include_url") {
-        let pattern = include_url.as_str()
-            .ok_or_else(|| {
-                Error::FormatError(format!("'rules.{}.include_url' should be a string", name))
-            })?;
-        result.add_matcher(Box::new(matcher::URLMatcher::new(pattern)?));
-    }
+    splat(table.get("include_url"),
+          "include_url",
+          &mut |s| {
+              result.add_matcher(Box::new(matcher::URLMatcher::new(s)?));
+              Ok(())
+          })
+        ?;
 
     Ok(result)
 }
@@ -207,12 +225,21 @@ mod parse_rule {
     }
 
     #[test]
-    fn fails_if_rule_include_url_is_not_a_table() {
+    fn fails_if_rule_include_url_is_not_a_string() {
         let error = parse_and_unwrap_error("[rules.foo]
                                            include_url = false");
 
-        assert_eq!(format!("{}", error),
-                   "'rules.foo.include_url' should be a string");
+        assert_eq!(format!("{}", error), "'include_url' should be a string");
+        assert_eq!(error.description(), "TOML format error");
+        assert!(error.cause().is_none());
+    }
+
+    #[test]
+    fn fails_if_date_format_is_not_a_string() {
+        let error = parse_and_unwrap_error("[rules.foo]
+                                           date_format = false");
+
+        assert_eq!(format!("{}", error), "'date_format' should be a string");
         assert_eq!(error.description(), "TOML format error");
         assert!(error.cause().is_none());
     }
@@ -227,5 +254,20 @@ mod parse_rule {
 
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].name(), "wordpress");
+        // TODO
     }
+
+    #[test]
+    fn include_url_can_be_an_array() {
+        let rules = parse_rules_from_str(r#"
+        [rules.wordpress]
+        include_url = ["*//foo", "*//bar"]
+        "#)
+            .expect("Failed to parse toml");
+
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].name(), "wordpress");
+        // TODO
+    }
+
 }
