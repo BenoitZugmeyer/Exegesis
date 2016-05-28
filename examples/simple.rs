@@ -25,6 +25,8 @@ fn main() {
 include_url = "*//blog.rust-lang.org/**"
 date_format = "%B %d, %Y"
 
+root = ".post"
+
 title = ".post-title"
 date = ".post-meta"
 paragraph = ".post-content p"
