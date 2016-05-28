@@ -3,6 +3,7 @@ extern crate toml;
 use std::error;
 use std::fmt;
 use extractor::{Extractor, ExtractorOptions, PartType, Selector};
+use kuchiki::Selectors;
 use rule;
 use matcher;
 
@@ -17,6 +18,7 @@ pub struct ParserError {
 pub enum Error {
     ParserErrors(Vec<ParserError>),
     FormatError(String),
+    SelectorParserError,
 }
 
 impl fmt::Display for Error {
@@ -34,6 +36,7 @@ impl fmt::Display for Error {
                 Ok(())
             }
             Error::FormatError(ref reason) => write!(f, "{}", reason),
+            Error::SelectorParserError => write!(f, "{}", "Failed to parse the selector"),
         }
     }
 }
@@ -43,6 +46,7 @@ impl error::Error for Error {
         match *self {
             Error::ParserErrors(..) => "TOML parser errors",
             Error::FormatError(..) => "TOML format error",
+            Error::SelectorParserError => "Selector parser error",
         }
     }
 
@@ -61,9 +65,7 @@ fn parse_selector(part_type: PartType,
         let query = value.as_str()
             .ok_or_else(|| Error::FormatError(format!("{} should be a string", name)))?;
 
-        let selector = Selector::new(part_type,
-                                     query.parse()
-                                         .map_err(|_| "failed to parse the CSS selector")?);
+        let selector = Selector::new(part_type, parse_kuchiki_selectors(query)?);
         extractor.add_selector(selector);
     }
     Ok(())
@@ -86,6 +88,38 @@ fn splat<F>(opt_value: Option<&toml::Value>, name: &str, f: &mut F) -> Result<()
     Ok(())
 }
 
+fn get_string_opt<'l>(table: &'l toml::Table, name: &str) -> Result<Option<&'l str>, Error> {
+    match table.get(name) {
+        None => Ok(None),
+        Some(&toml::Value::String(ref s)) => Ok(Some(s)),
+        _ => Err(Error::FormatError(format!("'{}' should be a string", name)))?,
+    }
+}
+
+fn parse_kuchiki_selectors(s: &str) -> Result<Selectors, Box<error::Error>> {
+    Ok(s.parse().map_err(|_| Error::SelectorParserError)?)
+}
+
+trait MapThen<T> {
+    fn map_then<F, U, E>(self, f: F) -> Result<Option<U>, E> where F: FnOnce(T) -> Result<U, E>;
+}
+
+impl<T> MapThen<T> for Option<T> {
+    fn map_then<F, U, E>(self, f: F) -> Result<Option<U>, E>
+        where F: FnOnce(T) -> Result<U, E>
+    {
+        match self {
+            Some(v) => {
+                match f(v) {
+                    Ok(result) => Ok(Some(result)),
+                    Err(error) => Err(error),
+                }
+            }
+            None => Ok(None),
+        }
+    }
+}
+
 fn parse_rule_from_toml_value(name: &str,
                               value: &toml::Value)
                               -> Result<rule::Rule, Box<error::Error>> {
@@ -94,15 +128,11 @@ fn parse_rule_from_toml_value(name: &str,
     let table = value.as_table()
         .ok_or_else(|| Error::FormatError(format!("The rule '{}' should be a table", name)))?;
 
-    let mut extractor_options = ExtractorOptions::default();
-
-    splat(table.get("date_format"),
-          "date_format",
-          &mut |s| {
-              extractor_options.date_format = Some(s.to_string());
-              Ok(())
-          })
-        ?;
+    let extractor_options = ExtractorOptions {
+        date_format: get_string_opt(table, "date_format")?.map(String::from),
+        root_selector: get_string_opt(table, "root")?.map_then(parse_kuchiki_selectors)?,
+        ..ExtractorOptions::default()
+    };
 
     let mut extractor = Extractor::new(extractor_options);
 
@@ -268,6 +298,16 @@ mod parse_rule {
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].name(), "wordpress");
         // TODO
+    }
+
+    #[test]
+    fn fails_if_root_has_error() {
+        let error = parse_and_unwrap_error(r#"[rules.foo]
+                                           root = "blih >""#);
+
+        assert_eq!(format!("{}", error), "Failed to parse the selector");
+        assert_eq!(error.description(), "Selector parser error");
+        assert!(error.cause().is_none());
     }
 
 }

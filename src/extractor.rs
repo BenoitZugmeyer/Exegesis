@@ -220,6 +220,26 @@ impl Extractor {
     }
 
     fn extract_rec(&self, root: &kuchiki::NodeRef, mut content: &mut Vec<Part>) {
+        if let Some(ref root_selector) = self.options.root_selector {
+
+            if let Some(root_element) = root.clone().into_element_ref() {
+                if root_selector.matches(&root_element) {
+                    self.extract_root_rec(root, &mut content);
+                    return;
+                }
+            }
+
+            for child in root.children() {
+                self.extract_rec(&child, content);
+            }
+
+        }
+        else {
+            self.extract_root_rec(root, &mut content);
+        }
+    }
+
+    fn extract_root_rec(&self, root: &kuchiki::NodeRef, mut content: &mut Vec<Part>) {
         let ignore_text = {
             if let Some(ref el) = root.as_element() {
                 el.name.local.eq_str_ignore_ascii_case("script") ||
@@ -236,7 +256,7 @@ impl Extractor {
                 for selector in &self.selectors {
                     if selector.query.matches(child_element) {
                         let mut children = Vec::new();
-                        self.extract_rec(&child, &mut children);
+                        self.extract_root_rec(&child, &mut children);
 
                         match self.new_part(&selector.part, child_element, children) {
                             Ok(part) => content.push(part),
@@ -252,7 +272,7 @@ impl Extractor {
                 }
 
                 if !is_node {
-                    self.extract_rec(&child, &mut content);
+                    self.extract_root_rec(&child, &mut content);
                 }
             }
             else if !ignore_text {
@@ -377,6 +397,7 @@ mod extractor {
                            input,
                            ExtractorOptions {
                                date_format: Some("%B %d, %Y".to_string()),
+                               root_selector: Some(".post".parse().unwrap()),
                                ..ExtractorOptions::default()
                            });
         let expected_extracted =
