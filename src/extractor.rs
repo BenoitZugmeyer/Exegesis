@@ -1,5 +1,6 @@
 use ::kuchiki;
-use std::error::Error;
+use ::chrono;
+use std::error;
 use std::fmt;
 use std::str;
 use date::parse_date;
@@ -17,6 +18,7 @@ pub enum PartType {
     List,
     ListItem,
     Paragraph,
+    PublicationDate,
     Title,
 }
 
@@ -33,6 +35,7 @@ impl fmt::Display for PartType {
             PartType::List => "list",
             PartType::ListItem => "list-item",
             PartType::Paragraph => "paragraph",
+            PartType::PublicationDate => "publicaton-date",
             PartType::Title => "title",
         })
     }
@@ -90,7 +93,7 @@ impl Selector {
 
 #[derive(Default)]
 pub struct ExtractorOptions {
-    pub on_parse_error: Option<Box<Fn(Box<Error>)>>,
+    pub on_parse_error: Option<Box<Fn(Box<error::Error>)>>,
     pub date_format: Option<String>,
     pub root_selector: Option<kuchiki::Selectors>,
 }
@@ -252,13 +255,22 @@ impl Extractor {
 
     }
 
+    fn parse_date(&self, content: Vec<Part>) -> Result<chrono::NaiveDate, Box<error::Error>> {
+        if let Some(ref format) = self.options.date_format {
+            Ok(parse_date(format, &text(content))?)
+        }
+        else {
+            Err("No date format")?
+        }
+    }
+
     fn new_part(&self,
                 part_type: &PartType,
                 node: &kuchiki::ElementData,
                 document: &mut Document,
                 mut parent_children: &mut Vec<Part>,
                 children: Vec<Part>)
-                -> Result<(), Box<Error>> {
+                -> Result<(), Box<error::Error>> {
 
         macro_rules! get_attr {
             ($node:expr, $name:expr) => (
@@ -272,14 +284,7 @@ impl Extractor {
         }
 
         match *part_type {
-            PartType::Date => {
-                if let Some(ref format) = self.options.date_format {
-                    parent_children.push(Part::Date(parse_date(format, &text(children))?));
-                }
-                else {
-                    Err("No date format")?;
-                }
-            }
+            PartType::Date => parent_children.push(Part::Date(self.parse_date(children)?)),
             PartType::Emphasis => parent_children.push(Part::Emphasis(children)),
             PartType::Header1 => parent_children.push(Part::Header1(children)),
             PartType::Header2 => parent_children.push(Part::Header2(children)),
@@ -309,6 +314,9 @@ impl Extractor {
             PartType::List => parent_children.push(Part::List(children)),
             PartType::ListItem => parent_children.push(Part::ListItem(children)),
             PartType::Paragraph => parent_children.push(Part::Paragraph(children)),
+            PartType::PublicationDate => {
+                document.publication_date = Some(self.parse_date(children)?)
+            }
             PartType::Title => document.title = Some(children),
         }
 
@@ -357,6 +365,7 @@ mod extractor {
         assert_eq!(document,
                    Document {
                        title: Some(vec![Part::Text("Hi!".to_string())]),
+                       publication_date: None,
                        content: vec![Part::Text("\n\n    \n    ab  c\n".to_string())],
                    });
     }
@@ -379,12 +388,35 @@ mod extractor {
         assert_eq!(document,
                    Document {
                        title: None,
+                       publication_date: None,
                        content: vec![Part::Text("\n\n    Hi!\n    ".to_string()),
                                      Part::Date(chrono::NaiveDate::from_ymd(2015, 10, 10)),
                                      Part::Text("\n".to_string())],
                    });
     }
 
+    #[test]
+    fn test_publication_date() {
+        let markup = r#"<DOCTYPE html>
+<html>
+    <head><title>Hi!</title></head>
+    <body><span class="date">blah 2015-10-10 blah</span></body>
+</html>"#;
+        let document = extract_markup(vec![Selector::new(PartType::PublicationDate,
+                                                         ".date".parse().unwrap())],
+                                      markup,
+                                      ExtractorOptions {
+                                          date_format: Some("%Y-%m-%d".to_string()),
+                                          ..ExtractorOptions::default()
+                                      });
+
+        assert_eq!(document,
+                   Document {
+                       title: None,
+                       publication_date: Some(chrono::NaiveDate::from_ymd(2015, 10, 10)),
+                       content: vec![Part::Text("\n\n    Hi!\n    \n".to_string())],
+                   });
+    }
 
     #[test]
     fn selectors_priority() {

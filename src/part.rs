@@ -64,5 +64,6 @@ impl Part {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Document {
     pub title: Option<Vec<Part>>,
+    pub publication_date: Option<chrono::NaiveDate>,
     pub content: Vec<Part>,
 }
