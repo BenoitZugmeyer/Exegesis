@@ -60,6 +60,7 @@ impl Formatter for HtmlFormatter {
         match *part {
             Part::Document(ref children) => self.write_all(children, output)?,
             Part::Paragraph(ref children) => self.write_all_tag(children, "p", output)?,
+            Part::PublicationDate(ref date) |
             Part::Date(ref date) => {
                 write!(output,
                        r#"<time datetime="{}">{}</time>"#,

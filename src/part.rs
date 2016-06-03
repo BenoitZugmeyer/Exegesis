@@ -21,6 +21,7 @@ pub enum Part {
     List(Vec<Part>),
     ListItem(Vec<Part>),
     Paragraph(Vec<Part>),
+    PublicationDate(chrono::NaiveDate),
     Title(Vec<Part>),
 
     // Special parts
@@ -43,6 +44,7 @@ impl Part {
             Part::Title(ref children) => children,
 
             Part::Date(..) |
+            Part::PublicationDate(..) |
             Part::Image { .. } |
             Part::Text(..) => &[],
         }
