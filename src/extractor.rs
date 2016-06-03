@@ -141,69 +141,6 @@ impl Extractor {
         }
     }
 
-    fn new_part(&self,
-                part_type: &PartType,
-                node: &kuchiki::ElementData,
-                document: &mut Document,
-                mut parent_children: &mut Vec<Part>,
-                children: Vec<Part>)
-                -> Result<(), Box<Error>> {
-
-        macro_rules! get_attr {
-            ($node:expr, $name:expr) => (
-                if let Some(attr) = $node.attributes.borrow().get($name) {
-                    attr.parse().ok() // TODO handle error, handle XXXpx format
-                }
-                else {
-                    None
-                }
-            )
-        }
-
-        match *part_type {
-            PartType::Date => {
-                if let Some(ref format) = self.options.date_format {
-                    parent_children.push(Part::Date(parse_date(format, &text(children))?));
-                }
-                else {
-                    Err("No date format")?;
-                }
-            }
-            PartType::Emphasis => parent_children.push(Part::Emphasis(children)),
-            PartType::Header1 => parent_children.push(Part::Header1(children)),
-            PartType::Header2 => parent_children.push(Part::Header2(children)),
-            PartType::Header3 => parent_children.push(Part::Header3(children)),
-            PartType::Image => {
-                parent_children.push(Part::Image {
-                    url: node.attributes
-                        .borrow()
-                        .get("src")
-                        .ok_or_else(|| "The image tag has no src attribute")?
-                        .to_string(),
-                    legend: node.attributes.borrow().get("title").map(|s| s.to_string()),
-                    width: get_attr!(node, "width"),
-                    height: get_attr!(node, "height"),
-                })
-            }
-            PartType::Link => {
-                parent_children.push(Part::Link {
-                    url: node.attributes
-                        .borrow()
-                        .get("href")
-                        .ok_or_else(|| "The link has no href attribute")?
-                        .to_string(),
-                    content: children,
-                })
-            }
-            PartType::List => parent_children.push(Part::List(children)),
-            PartType::ListItem => parent_children.push(Part::ListItem(children)),
-            PartType::Paragraph => parent_children.push(Part::Paragraph(children)),
-            PartType::Title => document.title = Some(children),
-        }
-
-        Ok(())
-    }
-
     pub fn add_selector(&mut self, selector: Selector) {
         if let Some(index) = self.selectors
             .iter()
@@ -217,7 +154,9 @@ impl Extractor {
             self.selectors.push(selector);
         }
     }
+}
 
+impl Extractor {
     pub fn extract(&self, root: &kuchiki::NodeRef) -> Document {
         let mut children = Vec::new();
         let mut document = Document::default();
@@ -308,6 +247,69 @@ impl Extractor {
             }
         }
 
+    }
+
+    fn new_part(&self,
+                part_type: &PartType,
+                node: &kuchiki::ElementData,
+                document: &mut Document,
+                mut parent_children: &mut Vec<Part>,
+                children: Vec<Part>)
+                -> Result<(), Box<Error>> {
+
+        macro_rules! get_attr {
+            ($node:expr, $name:expr) => (
+                if let Some(attr) = $node.attributes.borrow().get($name) {
+                    attr.parse().ok() // TODO handle error, handle XXXpx format
+                }
+                else {
+                    None
+                }
+            )
+        }
+
+        match *part_type {
+            PartType::Date => {
+                if let Some(ref format) = self.options.date_format {
+                    parent_children.push(Part::Date(parse_date(format, &text(children))?));
+                }
+                else {
+                    Err("No date format")?;
+                }
+            }
+            PartType::Emphasis => parent_children.push(Part::Emphasis(children)),
+            PartType::Header1 => parent_children.push(Part::Header1(children)),
+            PartType::Header2 => parent_children.push(Part::Header2(children)),
+            PartType::Header3 => parent_children.push(Part::Header3(children)),
+            PartType::Image => {
+                parent_children.push(Part::Image {
+                    url: node.attributes
+                        .borrow()
+                        .get("src")
+                        .ok_or_else(|| "The image tag has no src attribute")?
+                        .to_string(),
+                    legend: node.attributes.borrow().get("title").map(|s| s.to_string()),
+                    width: get_attr!(node, "width"),
+                    height: get_attr!(node, "height"),
+                })
+            }
+            PartType::Link => {
+                parent_children.push(Part::Link {
+                    url: node.attributes
+                        .borrow()
+                        .get("href")
+                        .ok_or_else(|| "The link has no href attribute")?
+                        .to_string(),
+                    content: children,
+                })
+            }
+            PartType::List => parent_children.push(Part::List(children)),
+            PartType::ListItem => parent_children.push(Part::ListItem(children)),
+            PartType::Paragraph => parent_children.push(Part::Paragraph(children)),
+            PartType::Title => document.title = Some(children),
+        }
+
+        Ok(())
     }
 }
 
