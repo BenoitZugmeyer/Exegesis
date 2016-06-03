@@ -3,7 +3,7 @@ use std::error::Error;
 use std::fmt;
 use std::str;
 use date::parse_date;
-use part::Part;
+use part::{Part, Document};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum PartType {
@@ -144,8 +144,11 @@ impl Extractor {
     fn new_part(&self,
                 part_type: &PartType,
                 node: &kuchiki::ElementData,
+                document: &mut Document,
+                mut parent_children: &mut Vec<Part>,
                 children: Vec<Part>)
-                -> Result<Part, Box<Error>> {
+                -> Result<(), Box<Error>> {
+
         macro_rules! get_attr {
             ($node:expr, $name:expr) => (
                 if let Some(attr) = $node.attributes.borrow().get($name) {
@@ -157,21 +160,21 @@ impl Extractor {
             )
         }
 
-        Ok(match *part_type {
+        match *part_type {
             PartType::Date => {
                 if let Some(ref format) = self.options.date_format {
-                    Part::Date(parse_date(format, &text(children))?)
+                    parent_children.push(Part::Date(parse_date(format, &text(children))?));
                 }
                 else {
-                    Err("No date format")?
+                    Err("No date format")?;
                 }
             }
-            PartType::Emphasis => Part::Emphasis(children),
-            PartType::Header1 => Part::Header1(children),
-            PartType::Header2 => Part::Header2(children),
-            PartType::Header3 => Part::Header3(children),
+            PartType::Emphasis => parent_children.push(Part::Emphasis(children)),
+            PartType::Header1 => parent_children.push(Part::Header1(children)),
+            PartType::Header2 => parent_children.push(Part::Header2(children)),
+            PartType::Header3 => parent_children.push(Part::Header3(children)),
             PartType::Image => {
-                Part::Image {
+                parent_children.push(Part::Image {
                     url: node.attributes
                         .borrow()
                         .get("src")
@@ -180,23 +183,25 @@ impl Extractor {
                     legend: node.attributes.borrow().get("title").map(|s| s.to_string()),
                     width: get_attr!(node, "width"),
                     height: get_attr!(node, "height"),
-                }
+                })
             }
             PartType::Link => {
-                Part::Link {
+                parent_children.push(Part::Link {
                     url: node.attributes
                         .borrow()
                         .get("href")
                         .ok_or_else(|| "The link has no href attribute")?
                         .to_string(),
                     content: children,
-                }
+                })
             }
-            PartType::List => Part::List(children),
-            PartType::ListItem => Part::ListItem(children),
-            PartType::Paragraph => Part::Paragraph(children),
-            PartType::Title => Part::Title(children),
-        })
+            PartType::List => parent_children.push(Part::List(children)),
+            PartType::ListItem => parent_children.push(Part::ListItem(children)),
+            PartType::Paragraph => parent_children.push(Part::Paragraph(children)),
+            PartType::Title => document.title = Some(children),
+        }
+
+        Ok(())
     }
 
     pub fn add_selector(&mut self, selector: Selector) {
@@ -213,33 +218,41 @@ impl Extractor {
         }
     }
 
-    pub fn extract(&self, root: &kuchiki::NodeRef) -> Part {
+    pub fn extract(&self, root: &kuchiki::NodeRef) -> Document {
         let mut children = Vec::new();
-        self.extract_rec(root, &mut children);
-        Part::Document(children)
+        let mut document = Document::default();
+        self.extract_rec(root, &mut document, &mut children);
+        document.content.append(&mut children);
+        document
     }
 
-    fn extract_rec(&self, root: &kuchiki::NodeRef, mut content: &mut Vec<Part>) {
+    fn extract_rec(&self,
+                   root: &kuchiki::NodeRef,
+                   document: &mut Document,
+                   mut content: &mut Vec<Part>) {
         if let Some(ref root_selector) = self.options.root_selector {
 
             if let Some(root_element) = root.clone().into_element_ref() {
                 if root_selector.matches(&root_element) {
-                    self.extract_root_rec(root, &mut content);
+                    self.extract_root_rec(root, document, &mut content);
                     return;
                 }
             }
 
             for child in root.children() {
-                self.extract_rec(&child, content);
+                self.extract_rec(&child, document, content);
             }
 
         }
         else {
-            self.extract_root_rec(root, &mut content);
+            self.extract_root_rec(root, document, &mut content);
         }
     }
 
-    fn extract_root_rec(&self, root: &kuchiki::NodeRef, mut content: &mut Vec<Part>) {
+    fn extract_root_rec(&self,
+                        root: &kuchiki::NodeRef,
+                        document: &mut Document,
+                        mut content: &mut Vec<Part>) {
         let ignore_text = {
             if let Some(ref el) = root.as_element() {
                 el.name.local.eq_str_ignore_ascii_case("script") ||
@@ -256,10 +269,14 @@ impl Extractor {
                 for selector in &self.selectors {
                     if selector.query.matches(child_element) {
                         let mut children = Vec::new();
-                        self.extract_root_rec(&child, &mut children);
+                        self.extract_root_rec(&child, document, &mut children);
 
-                        match self.new_part(&selector.part, child_element, children) {
-                            Ok(part) => content.push(part),
+                        match self.new_part(&selector.part,
+                                            child_element,
+                                            document,
+                                            &mut content,
+                                            children) {
+                            Ok(_) => (),
                             Err(error) => {
                                 if let Some(ref f) = self.options.on_parse_error {
                                     f(error);
@@ -272,7 +289,7 @@ impl Extractor {
                 }
 
                 if !is_node {
-                    self.extract_root_rec(&child, &mut content);
+                    self.extract_root_rec(&child, document, &mut content);
                 }
             }
             else if !ignore_text {
@@ -297,7 +314,7 @@ impl Extractor {
 #[cfg(test)]
 mod extractor {
     use ::extractor::{Extractor, ExtractorOptions, Selector, PartType};
-    use ::part::Part;
+    use ::part::{Part, Document};
     use ::kuchiki;
     use ::chrono;
     use kuchiki::traits::TendrilSink;
@@ -305,7 +322,7 @@ mod extractor {
     fn extract_markup(selectors: Vec<Selector>,
                       markup: &str,
                       mut options: ExtractorOptions)
-                      -> Part {
+                      -> Document {
 
         if options.on_parse_error.is_none() {
             options.on_parse_error = Some(Box::new(|error| panic!("{}", error)));
@@ -320,7 +337,7 @@ mod extractor {
     }
 
     #[test]
-    fn test() {
+    fn test_simple() {
         let markup = "\
 <DOCTYPE html>
 <html>
@@ -332,12 +349,11 @@ mod extractor {
                                       markup,
                                       ExtractorOptions::default());
 
-        assert_eq!(document.text(), "\n\n    Hi!\n    ab  c\n");
-        assert_eq!(document.normalized_text(), "Hi! ab c");
         assert_eq!(document,
-                   Part::Document(vec![Part::Text("\n\n    ".to_string()),
-                                       Part::Title(vec![Part::Text("Hi!".to_string())]),
-                                       Part::Text("\n    ab  c\n".to_string())]));
+                   Document {
+                       title: Some(vec![Part::Text("Hi!".to_string())]),
+                       content: vec![Part::Text("\n\n    \n    ab  c\n".to_string())],
+                   });
     }
 
     #[test]
@@ -355,12 +371,13 @@ mod extractor {
                                           ..ExtractorOptions::default()
                                       });
 
-        assert_eq!(document.text(), "\n\n    Hi!\n    \n");
-        assert_eq!(document.normalized_text(), "Hi!");
         assert_eq!(document,
-                   Part::Document(vec![Part::Text("\n\n    Hi!\n    ".to_string()),
-                                       Part::Date(chrono::NaiveDate::from_ymd(2015, 10, 10)),
-                                       Part::Text("\n".to_string())]));
+                   Document {
+                       title: None,
+                       content: vec![Part::Text("\n\n    Hi!\n    ".to_string()),
+                                     Part::Date(chrono::NaiveDate::from_ymd(2015, 10, 10)),
+                                     Part::Text("\n".to_string())],
+                   });
     }
 
 
@@ -428,14 +445,14 @@ mod extractor {
         // print!("AAAA");
         // panic!("Print");
 
-        for (input_child, expected_child) in input_extracted.children()
+        for (input_child, expected_child) in input_extracted.content
             .iter()
-            .zip(expected_extracted.children().iter()) {
+            .zip(expected_extracted.content.iter()) {
             assert_eq!(input_child, expected_child);
         }
 
-        assert_eq!(input_extracted.children().len(),
-                   expected_extracted.children().len());
+        assert_eq!(input_extracted.content.len(),
+                   expected_extracted.content.len());
 
     }
 }

@@ -3,7 +3,7 @@ use std::error;
 
 use super::extractor::Extractor;
 use super::website::Website;
-use super::part::Part;
+use super::part::Document;
 use super::matcher;
 
 #[derive(Debug)]
@@ -31,7 +31,7 @@ impl Rule {
     }
 }
 
-pub fn extract(rules: &[Rule], website: &Website) -> Result<Part, Box<error::Error>> {
+pub fn extract(rules: &[Rule], website: &Website) -> Result<Document, Box<error::Error>> {
     let dom = website.dom.as_ref().ok_or("This website has no DOM")?;
 
     let rule = rules.iter()

@@ -22,17 +22,14 @@ pub enum Part {
     ListItem(Vec<Part>),
     Paragraph(Vec<Part>),
     PublicationDate(chrono::NaiveDate),
-    Title(Vec<Part>),
 
     // Special parts
-    Document(Vec<Part>),
     Text(String),
 }
 
 impl Part {
     pub fn children(&self) -> &[Part] {
         match *self {
-            Part::Document(ref children) |
             Part::Emphasis(ref children) |
             Part::Header1(ref children) |
             Part::Header2(ref children) |
@@ -40,8 +37,7 @@ impl Part {
             Part::Link { content: ref children, .. } |
             Part::List(ref children) |
             Part::ListItem(ref children) |
-            Part::Paragraph(ref children) |
-            Part::Title(ref children) => children,
+            Part::Paragraph(ref children) => children,
 
             Part::Date(..) |
             Part::PublicationDate(..) |
@@ -63,4 +59,10 @@ impl Part {
             if captures.at(1).is_some() { String::new() } else { " ".to_string() }
         })
     }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Document {
+    pub title: Option<Vec<Part>>,
+    pub content: Vec<Part>,
 }

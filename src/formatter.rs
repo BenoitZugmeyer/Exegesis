@@ -1,15 +1,23 @@
 use ::chrono;
 use chrono::TimeZone;
 use std::fmt;
-use part::Part;
+use part::{Document, Part};
 
 pub trait Formatter {
-    fn format_one<T: fmt::Write>(&self, &Part, &mut T) -> Result<(), fmt::Error>;
+    fn format_document<T: fmt::Write>(&self, &Document, &mut T) -> Result<(), fmt::Error>;
+    fn format_part<T: fmt::Write>(&self, &Part, &mut T) -> Result<(), fmt::Error>;
 
-    fn format(&self, part: &Part) -> Result<String, fmt::Error> {
+    fn format(&self, document: &Document) -> Result<String, fmt::Error> {
         let mut result = String::new();
-        self.format_one(part, &mut result)?;
+        self.format_document(document, &mut result)?;
         Ok(result)
+    }
+
+    fn format_parts<T: fmt::Write>(&self, children: &[Part], output: &mut T) -> fmt::Result {
+        for child in children {
+            self.format_part(child, output)?;
+        }
+        Ok(())
     }
 }
 
@@ -40,25 +48,32 @@ impl HtmlFormatter {
                                     output: &mut T)
                                     -> fmt::Result {
         write!(output, "<{}>", tag)?;
-        for child in children {
-            self.format_one(child, output)?;
-        }
+        self.format_parts(children, output)?;
         write!(output, "</{}>\n", tag)?;
-        Ok(())
-    }
-
-    fn write_all<T: fmt::Write>(&self, children: &[Part], output: &mut T) -> fmt::Result {
-        for child in children {
-            self.format_one(child, output)?;
-        }
         Ok(())
     }
 }
 
 impl Formatter for HtmlFormatter {
-    fn format_one<T: fmt::Write>(&self, part: &Part, output: &mut T) -> Result<(), fmt::Error> {
+    fn format_document<T: fmt::Write>(&self,
+                                      document: &Document,
+                                      output: &mut T)
+                                      -> Result<(), fmt::Error> {
+        output.write_str("<article>")?;
+        if document.title.is_some() {
+            output.write_str("<header>")?;
+            if let Some(ref title) = document.title {
+                self.write_all_tag(title, "h2", output)?;
+            }
+            output.write_str("</header>\n")?;
+        }
+        self.format_parts(&document.content, output)?;
+        output.write_str("</article>\n")?;
+        Ok(())
+    }
+
+    fn format_part<T: fmt::Write>(&self, part: &Part, output: &mut T) -> Result<(), fmt::Error> {
         match *part {
-            Part::Document(ref children) => self.write_all(children, output)?,
             Part::Paragraph(ref children) => self.write_all_tag(children, "p", output)?,
             Part::PublicationDate(ref date) |
             Part::Date(ref date) => {
@@ -81,12 +96,11 @@ impl Formatter for HtmlFormatter {
                 output.write_str(r#"<a href=""#)?;
                 Self::write_escaped(url, true, output)?;
                 output.write_str(r#"">"#)?;
-                self.write_all(content, output)?;
+                self.format_parts(content, output)?;
                 output.write_str("</a>")?;
             }
             Part::List(ref children) => self.write_all_tag(children, "ul", output)?,
             Part::ListItem(ref children) => self.write_all_tag(children, "li", output)?,
-            Part::Title(ref children) => self.write_all_tag(children, "h1", output)?,
             Part::Text(ref text) => HtmlFormatter::write_escaped(text, false, output)?,
         }
         Ok(())
@@ -96,13 +110,16 @@ impl Formatter for HtmlFormatter {
 #[cfg(test)]
 mod tests {
     use super::{Formatter, HtmlFormatter};
-    use ::part::Part;
+    use ::part::{Document, Part};
 
     #[test]
     fn test_html_formatter() {
         let formatter = HtmlFormatter {};
-        let document = Part::Document(vec![Part::Paragraph(vec![Part::Text("Oh hi!"
-                                                                    .to_string())])]);
-        assert_eq!(&formatter.format(&document).unwrap(), "<p>Oh hi!</p>\n");
+        let document = Document {
+            content: vec![Part::Paragraph(vec![Part::Text("Oh hi!".to_string())])],
+            ..Document::default()
+        };
+        assert_eq!(&formatter.format(&document).unwrap(),
+                   "<article><p>Oh hi!</p>\n</article>\n");
     }
 }
