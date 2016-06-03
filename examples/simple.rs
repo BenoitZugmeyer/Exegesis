@@ -40,6 +40,7 @@ image = "img"
         .unwrap();
 
     let website = download("http://blog.rust-lang.org/2016/05/16/rust-at-one-year.html").unwrap();
-    println!("{}",
-             HtmlFormatter {}.format(&extract(&rules, &website).unwrap()).unwrap());
+    for doc in &extract(&rules, &website).unwrap() {
+        println!("{}", HtmlFormatter {}.format(&doc).unwrap());
+    }
 }

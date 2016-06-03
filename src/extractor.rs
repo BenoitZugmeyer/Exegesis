@@ -157,41 +157,44 @@ impl Extractor {
 }
 
 impl Extractor {
-    pub fn extract(&self, root: &kuchiki::NodeRef) -> Document {
-        let mut children = Vec::new();
-        let mut document = Document::default();
-        self.extract_rec(root, &mut document, &mut children);
-        document.content.append(&mut children);
-        document
+    pub fn extract(&self, root: &kuchiki::NodeRef) -> Vec<Document> {
+        let mut documents = Vec::new();
+        self.extract_rec(root, &mut documents);
+        documents
     }
 
-    fn extract_rec(&self,
-                   root: &kuchiki::NodeRef,
-                   document: &mut Document,
-                   mut content: &mut Vec<Part>) {
+    fn extract_rec(&self, root: &kuchiki::NodeRef, documents: &mut Vec<Document>) {
         if let Some(ref root_selector) = self.options.root_selector {
 
             if let Some(root_element) = root.clone().into_element_ref() {
                 if root_selector.matches(&root_element) {
-                    self.extract_root_rec(root, document, &mut content);
+                    documents.push(self.extract_document(root));
                     return;
                 }
             }
 
             for child in root.children() {
-                self.extract_rec(&child, document, content);
+                self.extract_rec(&child, documents);
             }
 
         }
         else {
-            self.extract_root_rec(root, document, &mut content);
+            documents.push(self.extract_document(root));
         }
     }
 
-    fn extract_root_rec(&self,
-                        root: &kuchiki::NodeRef,
-                        document: &mut Document,
-                        mut content: &mut Vec<Part>) {
+    fn extract_document(&self, root: &kuchiki::NodeRef) -> Document {
+        let mut children = Vec::new();
+        let mut document = Document::default();
+        self.extract_document_rec(root, &mut document, &mut children);
+        document.content.append(&mut children);
+        document
+    }
+
+    fn extract_document_rec(&self,
+                            root: &kuchiki::NodeRef,
+                            document: &mut Document,
+                            mut content: &mut Vec<Part>) {
         let ignore_text = {
             if let Some(ref el) = root.as_element() {
                 el.name.local.eq_str_ignore_ascii_case("script") ||
@@ -208,7 +211,7 @@ impl Extractor {
                 for selector in &self.selectors {
                     if selector.query.matches(child_element) {
                         let mut children = Vec::new();
-                        self.extract_root_rec(&child, document, &mut children);
+                        self.extract_document_rec(&child, document, &mut children);
 
                         match self.new_part(&selector.part,
                                             child_element,
@@ -228,7 +231,7 @@ impl Extractor {
                 }
 
                 if !is_node {
-                    self.extract_root_rec(&child, document, &mut content);
+                    self.extract_document_rec(&child, document, &mut content);
                 }
             }
             else if !ignore_text {
@@ -335,7 +338,7 @@ mod extractor {
             extractor.add_selector(selector);
         }
         let root = kuchiki::parse_html().one(markup);
-        extractor.extract(&root)
+        extractor.extract(&root).pop().unwrap()
     }
 
     #[test]
