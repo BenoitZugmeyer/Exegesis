@@ -2,7 +2,7 @@ extern crate toml;
 
 use std::error;
 use std::fmt;
-use extractor::{Extractor, ExtractorOptions, PartType, Selector};
+use extractor::{Extractor, ExtractorOptions, PartType, Selector, ALL_PART_TYPES};
 use kuchiki::Selectors;
 use rule;
 use matcher;
@@ -136,17 +136,9 @@ fn parse_rule_from_toml_value(name: &str,
 
     let mut extractor = Extractor::new(extractor_options);
 
-    parse_selector(PartType::Date, table, &mut extractor)?;
-    parse_selector(PartType::Emphasis, table, &mut extractor)?;
-    parse_selector(PartType::Header1, table, &mut extractor)?;
-    parse_selector(PartType::Header2, table, &mut extractor)?;
-    parse_selector(PartType::Header3, table, &mut extractor)?;
-    parse_selector(PartType::Image, table, &mut extractor)?;
-    parse_selector(PartType::Link, table, &mut extractor)?;
-    parse_selector(PartType::List, table, &mut extractor)?;
-    parse_selector(PartType::ListItem, table, &mut extractor)?;
-    parse_selector(PartType::Paragraph, table, &mut extractor)?;
-    parse_selector(PartType::Title, table, &mut extractor)?;
+    for part in &ALL_PART_TYPES {
+        parse_selector(*part, table, &mut extractor)?;
+    }
 
     let mut result = rule::Rule::new(name.to_owned(), extractor);
 

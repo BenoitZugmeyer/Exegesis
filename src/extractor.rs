@@ -41,6 +41,19 @@ impl fmt::Display for PartType {
     }
 }
 
+pub const ALL_PART_TYPES: [PartType; 12] = [PartType::Date,
+                                            PartType::Emphasis,
+                                            PartType::Header1,
+                                            PartType::Header2,
+                                            PartType::Header3,
+                                            PartType::Image,
+                                            PartType::Link,
+                                            PartType::List,
+                                            PartType::ListItem,
+                                            PartType::Paragraph,
+                                            PartType::PublicationDate,
+                                            PartType::Title];
+
 struct SimpleDebugValue(&'static str);
 
 impl fmt::Debug for SimpleDebugValue {
