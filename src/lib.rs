@@ -20,4 +20,5 @@ pub mod toml;
 
 pub use website::Website;
 pub use rule::extract;
-pub use formatter::{Formatter, HtmlFormatter};
+pub use formatter::Formatter;
+pub use formatter::html::HtmlFormatter;

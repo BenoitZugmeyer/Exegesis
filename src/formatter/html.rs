@@ -1,25 +1,8 @@
 use ::chrono;
-use chrono::TimeZone;
 use std::fmt;
+use chrono::TimeZone;
 use part::{Document, Part};
-
-pub trait Formatter {
-    fn write_document<T: fmt::Write>(&self, &Document, &mut T) -> Result<(), fmt::Error>;
-    fn write_part<T: fmt::Write>(&self, &Part, &mut T) -> Result<(), fmt::Error>;
-
-    fn format(&self, document: &Document) -> Result<String, fmt::Error> {
-        let mut result = String::new();
-        self.write_document(document, &mut result)?;
-        Ok(result)
-    }
-
-    fn write_parts<T: fmt::Write>(&self, children: &[Part], output: &mut T) -> fmt::Result {
-        for child in children {
-            self.write_part(child, output)?;
-        }
-        Ok(())
-    }
-}
+use super::Formatter;
 
 pub struct HtmlFormatter;
 
@@ -109,7 +92,8 @@ impl Formatter for HtmlFormatter {
 
 #[cfg(test)]
 mod tests {
-    use super::{Formatter, HtmlFormatter};
+    use super::HtmlFormatter;
+    use ::formatter::Formatter;
     use ::part::{Document, Part};
 
     #[test]
