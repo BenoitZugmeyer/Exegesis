@@ -8,7 +8,7 @@ use date::parse_date;
 use part::{Part, Document};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum PartType {
+pub enum SelectorKind {
     Date,
     Emphasis,
     Header1,
@@ -23,37 +23,37 @@ pub enum PartType {
     Title,
 }
 
-impl fmt::Display for PartType {
+impl fmt::Display for SelectorKind {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(match *self {
-            PartType::Date => "date",
-            PartType::Emphasis => "emphasis",
-            PartType::Header1 => "header1",
-            PartType::Header2 => "header2",
-            PartType::Header3 => "header3",
-            PartType::Image => "image",
-            PartType::Link => "link",
-            PartType::List => "list",
-            PartType::ListItem => "list-item",
-            PartType::Paragraph => "paragraph",
-            PartType::PublicationDate => "publicaton-date",
-            PartType::Title => "title",
+            SelectorKind::Date => "date",
+            SelectorKind::Emphasis => "emphasis",
+            SelectorKind::Header1 => "header1",
+            SelectorKind::Header2 => "header2",
+            SelectorKind::Header3 => "header3",
+            SelectorKind::Image => "image",
+            SelectorKind::Link => "link",
+            SelectorKind::List => "list",
+            SelectorKind::ListItem => "list-item",
+            SelectorKind::Paragraph => "paragraph",
+            SelectorKind::PublicationDate => "publicaton-date",
+            SelectorKind::Title => "title",
         })
     }
 }
 
-pub const ALL_PART_TYPES: [PartType; 12] = [PartType::Date,
-                                            PartType::Emphasis,
-                                            PartType::Header1,
-                                            PartType::Header2,
-                                            PartType::Header3,
-                                            PartType::Image,
-                                            PartType::Link,
-                                            PartType::List,
-                                            PartType::ListItem,
-                                            PartType::Paragraph,
-                                            PartType::PublicationDate,
-                                            PartType::Title];
+pub const ALL_SELECTOR_KINDS: [SelectorKind; 12] = [SelectorKind::Date,
+                                                    SelectorKind::Emphasis,
+                                                    SelectorKind::Header1,
+                                                    SelectorKind::Header2,
+                                                    SelectorKind::Header3,
+                                                    SelectorKind::Image,
+                                                    SelectorKind::Link,
+                                                    SelectorKind::List,
+                                                    SelectorKind::ListItem,
+                                                    SelectorKind::Paragraph,
+                                                    SelectorKind::PublicationDate,
+                                                    SelectorKind::Title];
 
 struct SimpleDebugValue(&'static str);
 
@@ -75,7 +75,7 @@ macro_rules! sdv_from_option{
 }
 
 pub struct Selector {
-    part: PartType,
+    kind: SelectorKind,
     query: kuchiki::Selectors, // absolute: bool,
     priority: u16,
 }
@@ -83,7 +83,7 @@ pub struct Selector {
 impl fmt::Debug for Selector {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.debug_struct("Selector")
-            .field("part", &self.part)
+            .field("kind", &self.kind)
             .field("query", &SimpleDebugValue("..."))
             .field("priority", &self.priority)
             .finish()
@@ -91,9 +91,9 @@ impl fmt::Debug for Selector {
 }
 
 impl Selector {
-    pub fn new(part: PartType, query: kuchiki::Selectors) -> Selector {
+    pub fn new(kind: SelectorKind, query: kuchiki::Selectors) -> Selector {
         Selector {
-            part: part,
+            kind: kind,
             query: query,
             priority: 0,
         }
@@ -240,7 +240,7 @@ impl Extractor {
                         self.extract_document_rec(&child, &mut result);
                         mem::swap(&mut result.parent_children, &mut children);
 
-                        if let Err(error) = self.handle_part(&selector.part,
+                        if let Err(error) = self.handle_part(&selector.kind,
                                                              child_element,
                                                              children,
                                                              &mut result) {
@@ -286,7 +286,7 @@ impl Extractor {
     }
 
     fn handle_part(&self,
-                   part_type: &PartType,
+                   selector_kind: &SelectorKind,
                    node: &kuchiki::ElementData,
                    children: Vec<Part>,
                    mut result: &mut ExtractorResult)
@@ -303,13 +303,13 @@ impl Extractor {
             )
         }
 
-        match *part_type {
-            PartType::Date => result.parent_children.push(Part::Date(self.parse_date(children)?)),
-            PartType::Emphasis => result.parent_children.push(Part::Emphasis(children)),
-            PartType::Header1 => result.parent_children.push(Part::Header1(children)),
-            PartType::Header2 => result.parent_children.push(Part::Header2(children)),
-            PartType::Header3 => result.parent_children.push(Part::Header3(children)),
-            PartType::Image => {
+        match *selector_kind {
+            SelectorKind::Date => result.parent_children.push(Part::Date(self.parse_date(children)?)),
+            SelectorKind::Emphasis => result.parent_children.push(Part::Emphasis(children)),
+            SelectorKind::Header1 => result.parent_children.push(Part::Header1(children)),
+            SelectorKind::Header2 => result.parent_children.push(Part::Header2(children)),
+            SelectorKind::Header3 => result.parent_children.push(Part::Header3(children)),
+            SelectorKind::Image => {
                 result.parent_children.push(Part::Image {
                     url: node.attributes
                         .borrow()
@@ -321,7 +321,7 @@ impl Extractor {
                     height: get_attr!(node, "height"),
                 })
             }
-            PartType::Link => {
+            SelectorKind::Link => {
                 result.parent_children.push(Part::Link {
                     url: node.attributes
                         .borrow()
@@ -331,13 +331,13 @@ impl Extractor {
                     content: children,
                 })
             }
-            PartType::List => result.parent_children.push(Part::List(children)),
-            PartType::ListItem => result.parent_children.push(Part::ListItem(children)),
-            PartType::Paragraph => result.parent_children.push(Part::Paragraph(children)),
-            PartType::PublicationDate => {
+            SelectorKind::List => result.parent_children.push(Part::List(children)),
+            SelectorKind::ListItem => result.parent_children.push(Part::ListItem(children)),
+            SelectorKind::Paragraph => result.parent_children.push(Part::Paragraph(children)),
+            SelectorKind::PublicationDate => {
                 result.document.publication_date = Some(self.parse_date(children)?)
             }
-            PartType::Title => result.document.title = Some(children),
+            SelectorKind::Title => result.document.title = Some(children),
         }
 
         Ok(())
@@ -346,7 +346,7 @@ impl Extractor {
 
 #[cfg(test)]
 mod extractor {
-    use ::extractor::{Extractor, ExtractorOptions, Selector, PartType};
+    use ::extractor::{Extractor, ExtractorOptions, Selector, SelectorKind};
     use ::part::{Part, Document};
     use ::kuchiki;
     use ::chrono;
@@ -377,7 +377,7 @@ mod extractor {
     <head><title>Hi!</title></head>
     <body>a<span>b </span> c</body>
 </html>";
-        let document = extract_markup(vec![Selector::new(PartType::Title,
+        let document = extract_markup(vec![Selector::new(SelectorKind::Title,
                                                          "title".parse().unwrap())],
                                       markup,
                                       ExtractorOptions::default());
@@ -397,7 +397,7 @@ mod extractor {
     <head><title>Hi!</title></head>
     <body><span class="date">blah 2015-10-10 blah</span></body>
 </html>"#;
-        let document = extract_markup(vec![Selector::new(PartType::Date,
+        let document = extract_markup(vec![Selector::new(SelectorKind::Date,
                                                          ".date".parse().unwrap())],
                                       markup,
                                       ExtractorOptions {
@@ -422,7 +422,7 @@ mod extractor {
     <head><title>Hi!</title></head>
     <body><span class="date">blah 2015-10-10 blah</span></body>
 </html>"#;
-        let document = extract_markup(vec![Selector::new(PartType::PublicationDate,
+        let document = extract_markup(vec![Selector::new(SelectorKind::PublicationDate,
                                                          ".date".parse().unwrap())],
                                       markup,
                                       ExtractorOptions {
@@ -443,21 +443,21 @@ mod extractor {
         let mut extractor = Extractor::new(ExtractorOptions::default());
         assert_eq!(extractor.selectors.len(), 0);
         extractor.add_selector(
-            Selector::new(PartType::Paragraph, "a".parse().unwrap()).priority(1));
-        extractor.add_selector(Selector::new(PartType::Emphasis, "a".parse().unwrap()).priority(2));
-        extractor.add_selector(Selector::new(PartType::Header1, "a".parse().unwrap()).priority(3));
-        extractor.add_selector(Selector::new(PartType::Header2, "a".parse().unwrap()).priority(2));
-        extractor.add_selector(Selector::new(PartType::Date, "a".parse().unwrap()).priority(0));
-        extractor.add_selector(Selector::new(PartType::Header3, "a".parse().unwrap()).priority(1));
+            Selector::new(SelectorKind::Paragraph, "a".parse().unwrap()).priority(1));
+        extractor.add_selector(Selector::new(SelectorKind::Emphasis, "a".parse().unwrap()).priority(2));
+        extractor.add_selector(Selector::new(SelectorKind::Header1, "a".parse().unwrap()).priority(3));
+        extractor.add_selector(Selector::new(SelectorKind::Header2, "a".parse().unwrap()).priority(2));
+        extractor.add_selector(Selector::new(SelectorKind::Date, "a".parse().unwrap()).priority(0));
+        extractor.add_selector(Selector::new(SelectorKind::Header3, "a".parse().unwrap()).priority(1));
 
         assert_eq!(extractor.selectors.len(), 6);
 
-        assert_eq!(extractor.selectors[0].part, PartType::Header1);
-        assert_eq!(extractor.selectors[1].part, PartType::Emphasis);
-        assert_eq!(extractor.selectors[2].part, PartType::Header2);
-        assert_eq!(extractor.selectors[3].part, PartType::Paragraph);
-        assert_eq!(extractor.selectors[4].part, PartType::Header3);
-        assert_eq!(extractor.selectors[5].part, PartType::Date);
+        assert_eq!(extractor.selectors[0].kind, SelectorKind::Header1);
+        assert_eq!(extractor.selectors[1].kind, SelectorKind::Emphasis);
+        assert_eq!(extractor.selectors[2].kind, SelectorKind::Header2);
+        assert_eq!(extractor.selectors[3].kind, SelectorKind::Paragraph);
+        assert_eq!(extractor.selectors[4].kind, SelectorKind::Header3);
+        assert_eq!(extractor.selectors[5].kind, SelectorKind::Date);
     }
 
     #[test]
@@ -466,8 +466,8 @@ mod extractor {
         let expected = include_str!("../tests/rust-at-one-year.expected.html");
 
         let input_extracted =
-            extract_markup(vec![Selector::new(PartType::Date, ".post-meta".parse().unwrap()),
-                                Selector::new(PartType::Paragraph, "p".parse().unwrap())],
+            extract_markup(vec![Selector::new(SelectorKind::Date, ".post-meta".parse().unwrap()),
+                                Selector::new(SelectorKind::Paragraph, "p".parse().unwrap())],
                            input,
                            ExtractorOptions {
                                date_format: Some("%B %d, %Y".to_string()),
@@ -475,8 +475,8 @@ mod extractor {
                                ..ExtractorOptions::default()
                            });
         let expected_extracted =
-            extract_markup(vec![Selector::new(PartType::Date, "time".parse().unwrap()),
-                                Selector::new(PartType::Paragraph, "p".parse().unwrap())],
+            extract_markup(vec![Selector::new(SelectorKind::Date, "time".parse().unwrap()),
+                                Selector::new(SelectorKind::Paragraph, "p".parse().unwrap())],
                            expected,
                            ExtractorOptions {
                                date_format: Some("%Y-%m-%d".to_string()),

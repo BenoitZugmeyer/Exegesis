@@ -2,7 +2,7 @@ extern crate toml;
 
 use std::error;
 use std::fmt;
-use extractor::{Extractor, ExtractorOptions, PartType, Selector, ALL_PART_TYPES};
+use extractor::{Extractor, ExtractorOptions, SelectorKind, Selector, ALL_SELECTOR_KINDS};
 use kuchiki::Selectors;
 use rule;
 use matcher;
@@ -55,17 +55,17 @@ impl error::Error for Error {
     }
 }
 
-fn parse_selector(part_type: PartType,
+fn parse_selector(selector_kind: SelectorKind,
                   table: &toml::Table,
                   extractor: &mut Extractor)
                   -> Result<(), Box<error::Error>> {
-    let name = part_type.to_string();
+    let name = selector_kind.to_string();
 
     if let Some(value) = table.get(&name) {
         let query = value.as_str()
             .ok_or_else(|| Error::FormatError(format!("{} should be a string", name)))?;
 
-        let selector = Selector::new(part_type, parse_kuchiki_selectors(query)?);
+        let selector = Selector::new(selector_kind, parse_kuchiki_selectors(query)?);
         extractor.add_selector(selector);
     }
     Ok(())
@@ -136,7 +136,7 @@ fn parse_rule_from_toml_value(name: &str,
 
     let mut extractor = Extractor::new(extractor_options);
 
-    for part in &ALL_PART_TYPES {
+    for part in &ALL_SELECTOR_KINDS {
         parse_selector(*part, table, &mut extractor)?;
     }
 
