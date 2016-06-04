@@ -1,5 +1,6 @@
 use ::kuchiki;
 use ::chrono;
+use std::mem;
 use std::error;
 use std::fmt;
 use std::str;
@@ -123,6 +124,11 @@ impl fmt::Debug for ExtractorOptions {
     }
 }
 
+struct ExtractorResult<'a> {
+    document: &'a mut Document,
+    parent_children: Vec<Part>,
+}
+
 #[derive(Default)]
 pub struct Extractor {
     selectors: Vec<Selector>,
@@ -200,17 +206,19 @@ impl Extractor {
     }
 
     fn extract_document(&self, root: &kuchiki::NodeRef) -> Document {
-        let mut children = Vec::new();
         let mut document = Document::default();
-        self.extract_document_rec(root, &mut document, &mut children);
-        document.content.append(&mut children);
+        {
+            let mut result = ExtractorResult {
+                document: &mut document,
+                parent_children: Vec::new(),
+            };
+            self.extract_document_rec(root, &mut result);
+            result.document.content.append(&mut result.parent_children);
+        }
         document
     }
 
-    fn extract_document_rec(&self,
-                            root: &kuchiki::NodeRef,
-                            document: &mut Document,
-                            mut content: &mut Vec<Part>) {
+    fn extract_document_rec(&self, root: &kuchiki::NodeRef, mut result: &mut ExtractorResult) {
         let ignore_text = {
             if let Some(ref el) = root.as_element() {
                 el.name.local.eq_str_ignore_ascii_case("script") ||
@@ -227,18 +235,18 @@ impl Extractor {
                 for selector in &self.selectors {
                     if selector.query.matches(child_element) {
                         let mut children = Vec::new();
-                        self.extract_document_rec(&child, document, &mut children);
 
-                        match self.new_part(&selector.part,
-                                            child_element,
-                                            document,
-                                            &mut content,
-                                            children) {
-                            Ok(_) => (),
-                            Err(error) => {
-                                if let Some(ref f) = self.options.on_parse_error {
-                                    f(error);
-                                }
+                        mem::swap(&mut result.parent_children, &mut children);
+                        self.extract_document_rec(&child, &mut result);
+                        mem::swap(&mut result.parent_children, &mut children);
+
+                        if let Err(error) = self.handle_part(&selector.part,
+                                                             child_element,
+                                                             children,
+                                                             &mut result) {
+
+                            if let Some(ref f) = self.options.on_parse_error {
+                                f(error);
                             }
                         }
                         is_node = true;
@@ -247,20 +255,20 @@ impl Extractor {
                 }
 
                 if !is_node {
-                    self.extract_document_rec(&child, document, &mut content);
+                    self.extract_document_rec(&child, result);
                 }
             }
             else if !ignore_text {
                 let text = child.text_contents();
                 if !text.is_empty() {
                     let mut appended = false;
-                    if let Some(&mut Part::Text(ref mut last)) = content.last_mut() {
+                    if let Some(&mut Part::Text(ref mut last)) = result.parent_children.last_mut() {
                         appended = true;
                         last.push_str(&text);
                     }
 
                     if !appended {
-                        content.push(Part::Text(text));
+                        result.parent_children.push(Part::Text(text));
                     }
                 }
             }
@@ -277,13 +285,12 @@ impl Extractor {
         }
     }
 
-    fn new_part(&self,
-                part_type: &PartType,
-                node: &kuchiki::ElementData,
-                document: &mut Document,
-                mut parent_children: &mut Vec<Part>,
-                children: Vec<Part>)
-                -> Result<(), Box<error::Error>> {
+    fn handle_part(&self,
+                   part_type: &PartType,
+                   node: &kuchiki::ElementData,
+                   children: Vec<Part>,
+                   mut result: &mut ExtractorResult)
+                   -> Result<(), Box<error::Error>> {
 
         macro_rules! get_attr {
             ($node:expr, $name:expr) => (
@@ -297,13 +304,13 @@ impl Extractor {
         }
 
         match *part_type {
-            PartType::Date => parent_children.push(Part::Date(self.parse_date(children)?)),
-            PartType::Emphasis => parent_children.push(Part::Emphasis(children)),
-            PartType::Header1 => parent_children.push(Part::Header1(children)),
-            PartType::Header2 => parent_children.push(Part::Header2(children)),
-            PartType::Header3 => parent_children.push(Part::Header3(children)),
+            PartType::Date => result.parent_children.push(Part::Date(self.parse_date(children)?)),
+            PartType::Emphasis => result.parent_children.push(Part::Emphasis(children)),
+            PartType::Header1 => result.parent_children.push(Part::Header1(children)),
+            PartType::Header2 => result.parent_children.push(Part::Header2(children)),
+            PartType::Header3 => result.parent_children.push(Part::Header3(children)),
             PartType::Image => {
-                parent_children.push(Part::Image {
+                result.parent_children.push(Part::Image {
                     url: node.attributes
                         .borrow()
                         .get("src")
@@ -315,7 +322,7 @@ impl Extractor {
                 })
             }
             PartType::Link => {
-                parent_children.push(Part::Link {
+                result.parent_children.push(Part::Link {
                     url: node.attributes
                         .borrow()
                         .get("href")
@@ -324,13 +331,13 @@ impl Extractor {
                     content: children,
                 })
             }
-            PartType::List => parent_children.push(Part::List(children)),
-            PartType::ListItem => parent_children.push(Part::ListItem(children)),
-            PartType::Paragraph => parent_children.push(Part::Paragraph(children)),
+            PartType::List => result.parent_children.push(Part::List(children)),
+            PartType::ListItem => result.parent_children.push(Part::ListItem(children)),
+            PartType::Paragraph => result.parent_children.push(Part::Paragraph(children)),
             PartType::PublicationDate => {
-                document.publication_date = Some(self.parse_date(children)?)
+                result.document.publication_date = Some(self.parse_date(children)?)
             }
-            PartType::Title => document.title = Some(children),
+            PartType::Title => result.document.title = Some(children),
         }
 
         Ok(())

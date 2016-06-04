@@ -4,18 +4,18 @@ use std::fmt;
 use part::{Document, Part};
 
 pub trait Formatter {
-    fn format_document<T: fmt::Write>(&self, &Document, &mut T) -> Result<(), fmt::Error>;
-    fn format_part<T: fmt::Write>(&self, &Part, &mut T) -> Result<(), fmt::Error>;
+    fn write_document<T: fmt::Write>(&self, &Document, &mut T) -> Result<(), fmt::Error>;
+    fn write_part<T: fmt::Write>(&self, &Part, &mut T) -> Result<(), fmt::Error>;
 
     fn format(&self, document: &Document) -> Result<String, fmt::Error> {
         let mut result = String::new();
-        self.format_document(document, &mut result)?;
+        self.write_document(document, &mut result)?;
         Ok(result)
     }
 
-    fn format_parts<T: fmt::Write>(&self, children: &[Part], output: &mut T) -> fmt::Result {
+    fn write_parts<T: fmt::Write>(&self, children: &[Part], output: &mut T) -> fmt::Result {
         for child in children {
-            self.format_part(child, output)?;
+            self.write_part(child, output)?;
         }
         Ok(())
     }
@@ -48,17 +48,17 @@ impl HtmlFormatter {
                                     output: &mut T)
                                     -> fmt::Result {
         write!(output, "<{}>", tag)?;
-        self.format_parts(children, output)?;
+        self.write_parts(children, output)?;
         write!(output, "</{}>\n", tag)?;
         Ok(())
     }
 }
 
 impl Formatter for HtmlFormatter {
-    fn format_document<T: fmt::Write>(&self,
-                                      document: &Document,
-                                      output: &mut T)
-                                      -> Result<(), fmt::Error> {
+    fn write_document<T: fmt::Write>(&self,
+                                     document: &Document,
+                                     output: &mut T)
+                                     -> Result<(), fmt::Error> {
         output.write_str("<article>")?;
         if document.title.is_some() {
             output.write_str("<header>")?;
@@ -67,12 +67,12 @@ impl Formatter for HtmlFormatter {
             }
             output.write_str("</header>\n")?;
         }
-        self.format_parts(&document.content, output)?;
+        self.write_parts(&document.content, output)?;
         output.write_str("</article>\n")?;
         Ok(())
     }
 
-    fn format_part<T: fmt::Write>(&self, part: &Part, output: &mut T) -> Result<(), fmt::Error> {
+    fn write_part<T: fmt::Write>(&self, part: &Part, output: &mut T) -> Result<(), fmt::Error> {
         match *part {
             Part::Paragraph(ref children) => self.write_all_tag(children, "p", output)?,
             Part::PublicationDate(ref date) |
@@ -96,7 +96,7 @@ impl Formatter for HtmlFormatter {
                 output.write_str(r#"<a href=""#)?;
                 Self::write_escaped(url, true, output)?;
                 output.write_str(r#"">"#)?;
-                self.format_parts(content, output)?;
+                self.write_parts(content, output)?;
                 output.write_str("</a>")?;
             }
             Part::List(ref children) => self.write_all_tag(children, "ul", output)?,
