@@ -103,7 +103,6 @@ impl Formatter for HtmlFormatter {
                 write_el!(output, "p" => self.write_parts(children, output)?)
             }
 
-            Part::PublicationDate(ref date) |
             Part::Date(ref date) => {
                 self.write_date(date, output)?;
             }
