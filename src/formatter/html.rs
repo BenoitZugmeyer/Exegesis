@@ -60,6 +60,16 @@ impl HtmlFormatter {
         }
         Ok(())
     }
+
+    fn write_date<T: fmt::Write>(&self,
+                                 date: &chrono::NaiveDate,
+                                 output: &mut T)
+                                 -> Result<(), fmt::Error> {
+        write_el!(output, "time" {
+            "datetime" = &chrono::UTC.from_utc_datetime(&date.and_hms(0, 0, 0)).to_rfc3339()
+        } => output.write_str(&date.format("%Y-%m-%d").to_string())?);
+        Ok(())
+    }
 }
 
 impl Formatter for HtmlFormatter {
@@ -68,11 +78,18 @@ impl Formatter for HtmlFormatter {
                                      output: &mut T)
                                      -> Result<(), fmt::Error> {
         write_el!(output, "article" => {
-            if document.title.is_some() {
+            if document.title.is_some() || document.publication_date.is_some() {
                 write_el!(output, "header" => {
                     if let Some(ref title) = document.title {
                         write_el!(output, "h2" => self.write_parts(title, output)?);
                     }
+                    if let Some(ref date) = document.publication_date {
+                        write_el!(output, "p" => {
+                            output.write_str("On ")?;
+                            self.write_date(date, output)?
+                        });
+                    }
+
                 });
             }
             self.write_parts(&document.content, output)?;
@@ -88,9 +105,7 @@ impl Formatter for HtmlFormatter {
 
             Part::PublicationDate(ref date) |
             Part::Date(ref date) => {
-                write_el!(output, "time" {
-                    "datetime" = &chrono::UTC.from_utc_datetime(&date.and_hms(0, 0, 0)).to_rfc3339()
-                } => output.write_str(&date.format("%Y-%m-%d").to_string())?);
+                self.write_date(date, output)?;
             }
 
             Part::Emphasis(ref children) => {
@@ -129,9 +144,10 @@ impl Formatter for HtmlFormatter {
 
 #[cfg(test)]
 mod tests {
-    use super::HtmlFormatter;
+    use ::chrono;
     use ::formatter::Formatter;
     use ::part::{Document, Part};
+    use super::HtmlFormatter;
 
     #[test]
     fn test_html_formatter() {
@@ -142,11 +158,17 @@ mod tests {
                                                    url: r#"<>""#.to_string(),
                                                    content: vec![Part::Text("link".to_string())],
                                                }])],
+            publication_date: Some(chrono::NaiveDate::from_ymd(2000, 10, 7)),
             ..Document::default()
         };
         assert_eq!(&formatter.format(&document).unwrap(),
                    "\
             <article>\
+                <header>\
+                    <p>\
+                        On <time datetime=\"2000-10-07T00:00:00+00:00\">2000-10-07</time>\n\
+                    </p>\n\
+                </header>\n\
                 <p>\
                     Oh hi! &lt;&gt;\"\
                     <a href=\"<>&quot;\">link</a>\n\
