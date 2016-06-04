@@ -4,6 +4,42 @@ use chrono::TimeZone;
 use part::{Document, Part};
 use super::Formatter;
 
+macro_rules! write_el{
+    ($output: expr, $name:tt) => {
+        write_el!($output, $name { })
+    };
+
+    ($output: expr, $name:tt => $inner:expr) => {
+        write_el!($output, $name { } => $inner)
+    };
+
+    ($output: expr, $tag:tt { $( $attr_name:tt = $attr_value:expr )* }) => {{
+        write!($output, "<{}", $tag)?;
+
+        $(
+            write!($output, r#" {}=""#, $attr_name)?;
+            HtmlFormatter::write_escaped($attr_value, true, $output)?;
+            $output.write_str(r#"""#)?;
+        )*
+
+        $output.write_str("/>")?;
+    }};
+
+    ($output: expr, $tag:tt { $( $attr_name:tt = $attr_value:expr )* } => $inner:expr) => {{
+        write!($output, "<{}", $tag)?;
+
+        $(
+            write!($output, r#" {}=""#, $attr_name)?;
+            HtmlFormatter::write_escaped($attr_value, true, $output)?;
+            $output.write_str(r#"""#)?;
+        )*
+
+        $output.write_str(">")?;
+        $inner;
+        write!($output, "</{}>\n", $tag)?;
+    }}
+}
+
 pub struct HtmlFormatter;
 
 impl HtmlFormatter {
@@ -24,17 +60,6 @@ impl HtmlFormatter {
         }
         Ok(())
     }
-
-    fn write_all_tag<T: fmt::Write>(&self,
-                                    children: &[Part],
-                                    tag: &str,
-                                    output: &mut T)
-                                    -> fmt::Result {
-        write!(output, "<{}>", tag)?;
-        self.write_parts(children, output)?;
-        write!(output, "</{}>\n", tag)?;
-        Ok(())
-    }
 }
 
 impl Formatter for HtmlFormatter {
@@ -42,48 +67,60 @@ impl Formatter for HtmlFormatter {
                                      document: &Document,
                                      output: &mut T)
                                      -> Result<(), fmt::Error> {
-        output.write_str("<article>")?;
-        if document.title.is_some() {
-            output.write_str("<header>")?;
-            if let Some(ref title) = document.title {
-                self.write_all_tag(title, "h2", output)?;
+        write_el!(output, "article" => {
+            if document.title.is_some() {
+                write_el!(output, "header" => {
+                    if let Some(ref title) = document.title {
+                        write_el!(output, "h2" => self.write_parts(title, output)?);
+                    }
+                });
             }
-            output.write_str("</header>\n")?;
-        }
-        self.write_parts(&document.content, output)?;
-        output.write_str("</article>\n")?;
+            self.write_parts(&document.content, output)?;
+        });
         Ok(())
     }
 
     fn write_part<T: fmt::Write>(&self, part: &Part, output: &mut T) -> Result<(), fmt::Error> {
         match *part {
-            Part::Paragraph(ref children) => self.write_all_tag(children, "p", output)?,
+            Part::Paragraph(ref children) => {
+                write_el!(output, "p" => self.write_parts(children, output)?)
+            }
+
             Part::PublicationDate(ref date) |
             Part::Date(ref date) => {
-                write!(output,
-                       r#"<time datetime="{}">{}</time>"#,
-                       chrono::UTC.from_utc_datetime(&date.and_hms(0, 0, 0)).to_rfc3339(),
-                       date.format("%Y-%m-%d").to_string())
-                    ?
+                write_el!(output, "time" {
+                    "datetime" = &chrono::UTC.from_utc_datetime(&date.and_hms(0, 0, 0)).to_rfc3339()
+                } => output.write_str(&date.format("%Y-%m-%d").to_string())?);
             }
-            Part::Emphasis(ref children) => self.write_all_tag(children, "em", output)?,
-            Part::Header1(ref children) => self.write_all_tag(children, "h2", output)?,
-            Part::Header2(ref children) => self.write_all_tag(children, "h3", output)?,
-            Part::Header3(ref children) => self.write_all_tag(children, "h4", output)?,
+
+            Part::Emphasis(ref children) => {
+                write_el!(output, "em" => self.write_parts(children, output)?)
+            }
+            Part::Header1(ref children) => {
+                write_el!(output, "h2" => self.write_parts(children, output)?)
+            }
+            Part::Header2(ref children) => {
+                write_el!(output, "h3" => self.write_parts(children, output)?)
+            }
+            Part::Header3(ref children) => {
+                write_el!(output, "h4" => self.write_parts(children, output)?)
+            }
             Part::Image { ref url, .. } => {
-                output.write_str(r#"<img src=""#)?;
-                Self::write_escaped(url, true, output)?;
-                output.write_str(r#"" />"#)?;
+                write_el!(output, "img" {
+                    "src" = url
+                });
             }
             Part::Link { ref url, ref content } => {
-                output.write_str(r#"<a href=""#)?;
-                Self::write_escaped(url, true, output)?;
-                output.write_str(r#"">"#)?;
-                self.write_parts(content, output)?;
-                output.write_str("</a>")?;
+                write_el!(output, "a" {
+                    "href" = url
+                } => self.write_parts(content, output)?);
             }
-            Part::List(ref children) => self.write_all_tag(children, "ul", output)?,
-            Part::ListItem(ref children) => self.write_all_tag(children, "li", output)?,
+            Part::List(ref children) => {
+                write_el!(output, "ul" => self.write_parts(children, output)?)
+            }
+            Part::ListItem(ref children) => {
+                write_el!(output, "li" => self.write_parts(children, output)?)
+            }
             Part::Text(ref text) => HtmlFormatter::write_escaped(text, false, output)?,
         }
         Ok(())
@@ -100,10 +137,20 @@ mod tests {
     fn test_html_formatter() {
         let formatter = HtmlFormatter {};
         let document = Document {
-            content: vec![Part::Paragraph(vec![Part::Text("Oh hi!".to_string())])],
+            content: vec![Part::Paragraph(vec![Part::Text(r#"Oh hi! <>""#.to_string()),
+                                               Part::Link {
+                                                   url: r#"<>""#.to_string(),
+                                                   content: vec![Part::Text("link".to_string())],
+                                               }])],
             ..Document::default()
         };
         assert_eq!(&formatter.format(&document).unwrap(),
-                   "<article><p>Oh hi!</p>\n</article>\n");
+                   "\
+            <article>\
+                <p>\
+                    Oh hi! &lt;&gt;\"\
+                    <a href=\"<>&quot;\">link</a>\n\
+                </p>\n\
+            </article>\n");
     }
 }
