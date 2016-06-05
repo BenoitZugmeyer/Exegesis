@@ -1,19 +1,19 @@
 pub mod html;
 
-use std::fmt;
+use std::io;
 use part::{Document, Part};
 
 pub trait Formatter {
-    fn write_document<T: fmt::Write>(&self, &Document, &mut T) -> Result<(), fmt::Error>;
-    fn write_part<T: fmt::Write>(&self, &Part, &mut T) -> Result<(), fmt::Error>;
+    fn write_document<T: io::Write>(&self, &Document, &mut T) -> Result<(), io::Error>;
+    fn write_part<T: io::Write>(&self, &Part, &mut T) -> Result<(), io::Error>;
 
-    fn format(&self, document: &Document) -> Result<String, fmt::Error> {
-        let mut result = String::new();
+    fn format(&self, document: &Document) -> Result<String, io::Error> {
+        let mut result = Vec::new();
         self.write_document(document, &mut result)?;
-        Ok(result)
+        Ok(String::from_utf8(result).unwrap())
     }
 
-    fn write_parts<T: fmt::Write>(&self, children: &[Part], output: &mut T) -> fmt::Result {
+    fn write_parts<T: io::Write>(&self, children: &[Part], output: &mut T) -> io::Result<()> {
         for child in children {
             self.write_part(child, output)?;
         }

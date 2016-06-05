@@ -1,5 +1,5 @@
 use ::chrono;
-use std::fmt;
+use std::io;
 use chrono::TimeZone;
 use part::{Document, Part};
 use super::Formatter;
@@ -19,10 +19,10 @@ macro_rules! write_el{
         $(
             write!($output, r#" {}=""#, $attr_name)?;
             HtmlFormatter::write_escaped($attr_value, true, $output)?;
-            $output.write_str(r#"""#)?;
+            $output.write_all(br#"""#)?;
         )*
 
-        $output.write_str("/>")?;
+        $output.write_all(b"/>")?;
     }};
 
     ($output: expr, $tag:tt { $( $attr_name:tt = $attr_value:expr )* } => $inner:expr) => {{
@@ -31,10 +31,10 @@ macro_rules! write_el{
         $(
             write!($output, r#" {}=""#, $attr_name)?;
             HtmlFormatter::write_escaped($attr_value, true, $output)?;
-            $output.write_str(r#"""#)?;
+            $output.write_all(br#"""#)?;
         )*
 
-        $output.write_str(">")?;
+        $output.write_all(b">")?;
         $inner;
         write!($output, "</{}>\n", $tag)?;
     }}
@@ -43,40 +43,40 @@ macro_rules! write_el{
 pub struct HtmlFormatter;
 
 impl HtmlFormatter {
-    fn write_escaped<T: fmt::Write>(text: &str,
-                                    attr_mode: bool,
-                                    output: &mut T)
-                                    -> Result<(), fmt::Error> {
-        for c in text.chars() {
+    fn write_escaped<T: io::Write>(text: &str,
+                                   attr_mode: bool,
+                                   output: &mut T)
+                                   -> Result<(), io::Error> {
+        for c in text.bytes() {
             match c {
-                    '&' => output.write_str("&amp;"),
-                    '\u{00A0}' => output.write_str("&nbsp;"),
-                    '"' if attr_mode => output.write_str("&quot;"),
-                    '<' if !attr_mode => output.write_str("&lt;"),
-                    '>' if !attr_mode => output.write_str("&gt;"),
-                    c => output.write_char(c),
+                    b'&' => output.write_all(b"&amp;"),
+                    0x00A0 => output.write_all(b"&nbsp;"),
+                    b'"' if attr_mode => output.write_all(b"&quot;"),
+                    b'<' if !attr_mode => output.write_all(b"&lt;"),
+                    b'>' if !attr_mode => output.write_all(b"&gt;"),
+                    c => output.write_all(&[c]),
                 }
                 ?;
         }
         Ok(())
     }
 
-    fn write_date<T: fmt::Write>(&self,
-                                 date: &chrono::NaiveDate,
-                                 output: &mut T)
-                                 -> Result<(), fmt::Error> {
+    fn write_date<T: io::Write>(&self,
+                                date: &chrono::NaiveDate,
+                                output: &mut T)
+                                -> Result<(), io::Error> {
         write_el!(output, "time" {
             "datetime" = &chrono::UTC.from_utc_datetime(&date.and_hms(0, 0, 0)).to_rfc3339()
-        } => output.write_str(&date.format("%Y-%m-%d").to_string())?);
+        } => output.write_all(&date.format("%Y-%m-%d").to_string().as_bytes())?);
         Ok(())
     }
 }
 
 impl Formatter for HtmlFormatter {
-    fn write_document<T: fmt::Write>(&self,
-                                     document: &Document,
-                                     output: &mut T)
-                                     -> Result<(), fmt::Error> {
+    fn write_document<T: io::Write>(&self,
+                                    document: &Document,
+                                    output: &mut T)
+                                    -> Result<(), io::Error> {
         write_el!(output, "article" => {
             if document.title.is_some() || document.publication_date.is_some() {
                 write_el!(output, "header" => {
@@ -85,7 +85,7 @@ impl Formatter for HtmlFormatter {
                     }
                     if let Some(ref date) = document.publication_date {
                         write_el!(output, "p" => {
-                            output.write_str("On ")?;
+                            output.write_all(b"On ")?;
                             self.write_date(date, output)?
                         });
                     }
@@ -97,7 +97,7 @@ impl Formatter for HtmlFormatter {
         Ok(())
     }
 
-    fn write_part<T: fmt::Write>(&self, part: &Part, output: &mut T) -> Result<(), fmt::Error> {
+    fn write_part<T: io::Write>(&self, part: &Part, output: &mut T) -> Result<(), io::Error> {
         match *part {
             Part::Paragraph(ref children) => {
                 write_el!(output, "p" => self.write_parts(children, output)?)
