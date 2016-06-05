@@ -41,9 +41,36 @@ macro_rules! write_el{
     }}
 }
 
+#[derive(Default)]
 pub struct HtmlFormatter;
 
 impl HtmlFormatter {
+    pub fn write_full<T: io::Write>(&self,
+                                    documents: &[Document],
+                                    output: &mut T)
+                                    -> Result<(), Box<error::Error>> {
+
+        output.write(br#"<!DOCTYPE html>"#)?;
+        write_el!(output, "html" => {
+            write_el!(output, "head" => {
+                write_el!(output, "meta" {
+                    "charset" = "utf-8"
+                });
+                write_el!(output, "meta" {
+                    "name" = "viewport"
+                    "content" = "device-width"
+                });
+                write_el!(output, "title" => {});
+            });
+            write_el!(output, "body" => {
+                for doc in documents {
+                    self.write_document(doc, output)?;
+                }
+            });
+        });
+        Ok(())
+    }
+
     fn write_escaped<T: io::Write>(text: &str,
                                    attr_mode: bool,
                                    output: &mut T)

@@ -2,6 +2,7 @@ extern crate toml;
 
 use std::error;
 use std::fmt;
+use std::io::Write;
 use extractor::{Extractor, ExtractorOptions, SelectorKind, Selector, ALL_SELECTOR_KINDS};
 use kuchiki::Selectors;
 use rule;
@@ -131,6 +132,10 @@ fn parse_rule_from_toml_value(name: &str,
     let extractor_options = ExtractorOptions {
         date_format: get_string_opt(table, "date_format")?.map(String::from),
         root_selector: get_string_opt(table, "root")?.map_then(parse_kuchiki_selectors)?,
+        on_parse_error: Some(Box::new(|error| {
+            writeln!(::std::io::stderr(), "Warning: while parsing: {}", error)
+                .expect("Failed to write on stderr"); // TODO move this elsewhere
+        })),
         ..ExtractorOptions::default()
     };
 
