@@ -36,7 +36,7 @@ impl fmt::Display for SelectorKind {
             SelectorKind::List => "list",
             SelectorKind::ListItem => "list-item",
             SelectorKind::Paragraph => "paragraph",
-            SelectorKind::PublicationDate => "publicaton-date",
+            SelectorKind::PublicationDate => "publication-date",
             SelectorKind::Title => "title",
         })
     }
