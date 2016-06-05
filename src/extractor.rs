@@ -304,7 +304,9 @@ impl Extractor {
         }
 
         match *selector_kind {
-            SelectorKind::Date => result.parent_children.push(Part::Date(self.parse_date(children)?)),
+            SelectorKind::Date => {
+                result.parent_children.push(Part::Date(self.parse_date(children)?))
+            }
             SelectorKind::Emphasis => result.parent_children.push(Part::Emphasis(children)),
             SelectorKind::Header1 => result.parent_children.push(Part::Header1(children)),
             SelectorKind::Header2 => result.parent_children.push(Part::Header2(children)),

@@ -1,7 +1,7 @@
 use ::chrono;
 use ::regex;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Part {
     Date(chrono::NaiveDate),
     Emphasis(Vec<Part>),
@@ -59,9 +59,29 @@ impl Part {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Document {
     pub title: Option<Vec<Part>>,
     pub publication_date: Option<chrono::NaiveDate>,
     pub content: Vec<Part>,
+}
+
+#[cfg(test)]
+mod parts {
+    extern crate serde_json;
+    use ::chrono;
+    use super::Part;
+
+    #[test]
+    fn test_serialization() {
+        assert_eq!(serde_json::to_string(&Part::Date(chrono::NaiveDate::from_ymd(2000, 10, 8)))
+                       .unwrap(),
+                   r#"{"Date":"2000-10-08"}"#);
+    }
+
+    #[test]
+    fn test_deserialization() {
+        assert_eq!(serde_json::from_str::<Part>(r#"{"Date":"2000-10-08"}"#).unwrap(),
+                   Part::Date(chrono::NaiveDate::from_ymd(2000, 10, 8)));
+    }
 }

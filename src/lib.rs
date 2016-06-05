@@ -1,4 +1,8 @@
 #![feature(question_mark)]
+#![feature(custom_derive, plugin)]
+#![plugin(serde_macros)]
+
+extern crate serde;
 
 #[macro_use]
 extern crate mime;
@@ -22,3 +26,4 @@ pub use website::Website;
 pub use rule::extract;
 pub use formatter::Formatter;
 pub use formatter::html::HtmlFormatter;
+pub use formatter::json::JsonFormatter;

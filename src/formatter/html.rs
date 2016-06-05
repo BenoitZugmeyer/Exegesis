@@ -1,5 +1,6 @@
 use ::chrono;
 use std::io;
+use std::error;
 use chrono::TimeZone;
 use part::{Document, Part};
 use super::Formatter;
@@ -70,30 +71,11 @@ impl HtmlFormatter {
         } => output.write_all(&date.format("%Y-%m-%d").to_string().as_bytes())?);
         Ok(())
     }
-}
 
-impl Formatter for HtmlFormatter {
-    fn write_document<T: io::Write>(&self,
-                                    document: &Document,
-                                    output: &mut T)
-                                    -> Result<(), io::Error> {
-        write_el!(output, "article" => {
-            if document.title.is_some() || document.publication_date.is_some() {
-                write_el!(output, "header" => {
-                    if let Some(ref title) = document.title {
-                        write_el!(output, "h2" => self.write_parts(title, output)?);
-                    }
-                    if let Some(ref date) = document.publication_date {
-                        write_el!(output, "p" => {
-                            output.write_all(b"On ")?;
-                            self.write_date(date, output)?
-                        });
-                    }
-
-                });
-            }
-            self.write_parts(&document.content, output)?;
-        });
+    fn write_parts<T: io::Write>(&self, children: &[Part], output: &mut T) -> io::Result<()> {
+        for child in children {
+            self.write_part(child, output)?;
+        }
         Ok(())
     }
 
@@ -137,6 +119,32 @@ impl Formatter for HtmlFormatter {
             }
             Part::Text(ref text) => HtmlFormatter::write_escaped(text, false, output)?,
         }
+        Ok(())
+    }
+}
+
+impl Formatter for HtmlFormatter {
+    fn write_document<T: io::Write>(&self,
+                                    document: &Document,
+                                    output: &mut T)
+                                    -> Result<(), Box<error::Error>> {
+        write_el!(output, "article" => {
+            if document.title.is_some() || document.publication_date.is_some() {
+                write_el!(output, "header" => {
+                    if let Some(ref title) = document.title {
+                        write_el!(output, "h2" => self.write_parts(title, output)?);
+                    }
+                    if let Some(ref date) = document.publication_date {
+                        write_el!(output, "p" => {
+                            output.write_all(b"On ")?;
+                            self.write_date(date, output)?
+                        });
+                    }
+
+                });
+            }
+            self.write_parts(&document.content, output)?;
+        });
         Ok(())
     }
 }
