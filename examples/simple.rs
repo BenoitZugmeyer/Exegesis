@@ -2,8 +2,6 @@
 
 extern crate hyper;
 extern crate exegesis;
-
-#[feature(serde)]
 extern crate toml;
 
 use exegesis::{Website, Rules, Formatter, HtmlFormatter};
