@@ -3,6 +3,7 @@ extern crate clap;
 extern crate toml;
 extern crate exegesis;
 extern crate hyper;
+extern crate serde;
 
 use clap::{App, Arg};
 use std::fs;
@@ -11,8 +12,7 @@ use std::io::{Read, Write};
 use std::fmt::Write as FmtWrite;
 use std::path::Path;
 use std::process;
-use exegesis::{Website, extract, HtmlFormatter};
-use exegesis::toml::parse_rules;
+use exegesis::{Website, HtmlFormatter, Rules};
 
 macro_rules! error(
     ($($arg:tt)*) => { {
@@ -59,7 +59,7 @@ fn main() {
             .required(true))
         .get_matches();
 
-    let mut rules = Vec::new();
+    let mut rules = Rules::default();
 
     for value in matches.values_of_os("rules").unwrap() {
         let source = match read_file(Path::new(value)) {
@@ -83,12 +83,15 @@ fn main() {
             Some(t) => t,
         };
 
-        rules.extend(match parse_rules(&table) {
+        let mut decoder = toml::Decoder::new(toml::Value::Table(table));
+        let new_rules = match serde::Deserialize::deserialize(&mut decoder) {
             Err(error) => {
                 error!("Error while decoding '{}' rules: {}", value.to_string_lossy(), error)
             }
             Ok(r) => r,
-        });
+        };
+
+        rules.append(new_rules);
     }
 
     let url = matches.value_of("URL").unwrap();
@@ -97,7 +100,7 @@ fn main() {
         Ok(w) => w,
     };
 
-    let docs = match extract(&rules, &website) {
+    let docs = match rules.extract(&website) {
         Err(error) => error!("Error while extracting '{}': {}", url, error),
         Ok(d) => d,
     };

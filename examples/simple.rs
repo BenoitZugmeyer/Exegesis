@@ -3,7 +3,10 @@
 extern crate hyper;
 extern crate exegesis;
 
-use exegesis::{Website, toml, extract, Formatter, HtmlFormatter};
+#[feature(serde)]
+extern crate toml;
+
+use exegesis::{Website, Rules, Formatter, HtmlFormatter};
 
 use hyper::{Client, Error as HyperError};
 use hyper::header;
@@ -20,8 +23,8 @@ fn download(url: &str) -> Result<Website, HyperError> {
 }
 
 fn main() {
-    let rules = toml::parse_rules_from_str(r#"
-[rules.rustlang_blog]
+    let rules: Rules = toml::decode_str(r#"
+[rustlang_blog]
 include_url = "*//blog.rust-lang.org/**"
 date_format = "%B %d, %Y"
 
@@ -40,7 +43,7 @@ image = "img"
         .unwrap();
 
     let website = download("http://blog.rust-lang.org/2016/05/16/rust-at-one-year.html").unwrap();
-    for doc in &extract(&rules, &website).unwrap() {
+    for doc in &rules.extract(&website).unwrap() {
         println!("{}", HtmlFormatter {}.format(&doc).unwrap());
     }
 }

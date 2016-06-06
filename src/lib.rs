@@ -14,16 +14,16 @@ extern crate chrono;
 
 #[cfg(test)]mod mock;
 mod rule;
+mod rules;
 mod matcher;
 mod website;
 mod extractor;
 mod date;
 mod part;
 mod formatter;
-pub mod toml;
 
 pub use website::Website;
-pub use rule::extract;
+pub use rules::Rules;
 pub use formatter::Formatter;
 pub use formatter::html::HtmlFormatter;
 pub use formatter::json::JsonFormatter;

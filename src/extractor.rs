@@ -23,6 +23,26 @@ pub enum SelectorKind {
     Title,
 }
 
+impl SelectorKind {
+    pub fn from_str(s: &str) -> Option<SelectorKind> {
+        match s {
+            "date" => Some(SelectorKind::Date),
+            "emphasis" => Some(SelectorKind::Emphasis),
+            "header1" => Some(SelectorKind::Header1),
+            "header2" => Some(SelectorKind::Header2),
+            "header3" => Some(SelectorKind::Header3),
+            "image" => Some(SelectorKind::Image),
+            "link" => Some(SelectorKind::Link),
+            "list" => Some(SelectorKind::List),
+            "list-item" => Some(SelectorKind::ListItem),
+            "paragraph" => Some(SelectorKind::Paragraph),
+            "publication-date" => Some(SelectorKind::PublicationDate),
+            "title" => Some(SelectorKind::Title),
+            _ => None,
+        }
+    }
+}
+
 impl fmt::Display for SelectorKind {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(match *self {
@@ -41,19 +61,6 @@ impl fmt::Display for SelectorKind {
         })
     }
 }
-
-pub const ALL_SELECTOR_KINDS: [SelectorKind; 12] = [SelectorKind::Date,
-                                                    SelectorKind::Emphasis,
-                                                    SelectorKind::Header1,
-                                                    SelectorKind::Header2,
-                                                    SelectorKind::Header3,
-                                                    SelectorKind::Image,
-                                                    SelectorKind::Link,
-                                                    SelectorKind::List,
-                                                    SelectorKind::ListItem,
-                                                    SelectorKind::Paragraph,
-                                                    SelectorKind::PublicationDate,
-                                                    SelectorKind::Title];
 
 struct SimpleDebugValue(&'static str);
 
@@ -132,7 +139,7 @@ struct ExtractorResult<'a> {
 #[derive(Default)]
 pub struct Extractor {
     selectors: Vec<Selector>,
-    options: ExtractorOptions,
+    pub options: ExtractorOptions,
 }
 
 impl fmt::Debug for Extractor {
